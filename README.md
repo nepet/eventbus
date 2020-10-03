@@ -1,6 +1,6 @@
 # Eventbus
 
-#### A simple Implementation of a event bus in golang
+#### A simple Implementation of an event bus in golang
 
 This repository is an implementation of the publisher/subscriber pattern in golang. It is meant to be as simple as
 possible to cover as many cases as possible.
