@@ -5,6 +5,13 @@
 This repository is an implementation of the publisher/subscriber pattern in golang. It is meant to be as simple as
 possible to cover as many cases as possible.
 
+## Install
+
+```
+go get github.com/nepet/eventbus
+```
+
+
 ### Event
 
 ```
@@ -31,12 +38,6 @@ A handler handles an event without a return value. It is up to the developer how
 
 The repository also contains a handler mock and a mock for the event bus. This allows you to easily use the bus in unit
 tests.
-
-## Install
-
-```
-go get github.com/nepet/eventbus
-```
 
 ### Examples
 
