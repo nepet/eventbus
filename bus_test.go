@@ -1,7 +1,9 @@
 package eventbus
 
 import (
+	"fmt"
 	"math/rand"
+	"reflect"
 	"sync"
 	"testing"
 )
@@ -26,7 +28,7 @@ func TestBus_Subscribe(t *testing.T) {
 
 	b.Subscribe(e, h1)
 	// Should be subscribed.
-	AssertSubscriber(t, b, e, h1)
+	assertSubscriber(t, b, e, h1)
 
 	b.Subscribe(e, h1)
 	// Should not subscribe a second time.
@@ -34,7 +36,7 @@ func TestBus_Subscribe(t *testing.T) {
 		t.Errorf("expected %d subscriber, got: %d", 1, len(b.GetSubscribers(e)))
 	}
 	// Should still be subscribed.
-	AssertSubscriber(t, b, e, h1)
+	assertSubscriber(t, b, e, h1)
 
 	// Should not subscribe on different instance
 	// of same event type.
@@ -44,17 +46,17 @@ func TestBus_Subscribe(t *testing.T) {
 		t.Errorf("expected %d subscriber, got: %d", 1, len(b.GetSubscribers(e)))
 	}
 	// Should still be subscribed.
-	AssertSubscriber(t, b, e, h1)
+	assertSubscriber(t, b, e, h1)
 
 	// Subscribe a second handler to the same event.
 	b.Subscribe(e, h2)
 	// Should be subscribed.
-	AssertSubscriber(t, b, e, h2)
+	assertSubscriber(t, b, e, h2)
 
 	// Subscribe same handler to different event.
 	b.Subscribe(se, h1)
 	// Should be subscribed.
-	AssertSubscriber(t, b, se, h1)
+	assertSubscriber(t, b, se, h1)
 }
 
 // TestBus_SubscribeConcurrent checks that the subscription
@@ -90,19 +92,19 @@ func TestBus_Unsubscribe(t *testing.T) {
 	// Unsubscribe first handler.
 	b.Unsubscribe(e, h1)
 	// h1 should be unsubscribed, h2 not.
-	AssertNotSubscriber(t, b, e, h1)
-	AssertSubscriber(t, b, e, h2)
+	assertNotSubscriber(t, b, e, h1)
+	assertSubscriber(t, b, e, h2)
 
 	// Unsubscribe first handler, second time.
 	b.Unsubscribe(e, h1)
 	// h1 should be unsubscribed, h2 not.
-	AssertNotSubscriber(t, b, e, h1)
-	AssertSubscriber(t, b, e, h2)
+	assertNotSubscriber(t, b, e, h1)
+	assertSubscriber(t, b, e, h2)
 
 	// Unsubscribe second handler.
 	b.Unsubscribe(e, h2)
 	// Should have no more subscribers.
-	AssertNilSubscriber(t, b, e)
+	assertNilSubscriber(t, b, e)
 }
 
 func TestBus_Publish(t *testing.T) {
@@ -123,8 +125,8 @@ func TestBus_Publish(t *testing.T) {
 		b.Publish(evt)
 	}
 	wg.Wait()
-	AssertPublished(t, b, events)
-	AssertEventsHandled(t, h, &PrimaryEvent{}, &PrimaryEvent{})
+	assertPublished(t, b, events)
+	assertEventsHandled(t, h, &PrimaryEvent{}, &PrimaryEvent{})
 
 	// Assure that all Handler can be called on multiple
 	// events.
@@ -136,5 +138,81 @@ func TestBus_Publish(t *testing.T) {
 		b.Publish(evt)
 	}
 	wg.Wait()
-	AssertEventsHandled(t, h, &PrimaryEvent{}, &PrimaryEvent{}, &SecondaryEvent{})
+	assertEventsHandled(t, h, &PrimaryEvent{}, &PrimaryEvent{}, &SecondaryEvent{})
+}
+
+func assertSubscriber(t *testing.T, b *BusMock, e Event, h Handler) {
+	if !b.HasSubscriber(e, h) {
+		msg := ""
+		for s := range b.GetSubscribers(e) {
+			msg += fmt.Sprintf(" %v", reflect.TypeOf(s))
+		}
+		t.Errorf("expected %v subscribed to %v, but only got:%s", reflect.TypeOf(h), reflect.TypeOf(e), msg)
+	}
+}
+
+func assertNotSubscriber(t *testing.T, b *BusMock, e Event, h Handler) {
+	if b.HasSubscriber(e, h) {
+		t.Errorf("asserted %v to be no subscriber of %v", reflect.TypeOf(h), reflect.TypeOf(e))
+	}
+}
+
+func assertNilSubscriber(t *testing.T, b *BusMock, e Event) {
+	if b.GetSubscribers(e) != nil {
+		msg := ""
+		for s := range b.GetSubscribers(e) {
+			msg += fmt.Sprintf(" %v", reflect.TypeOf(s))
+		}
+		t.Errorf("expected nil subscriber on %v, got:%s", reflect.TypeOf(e), msg)
+	}
+}
+
+func assertPublished(t *testing.T, b *BusMock, want []Event) {
+	pe := b.GetPublished()
+	msg := ""
+	for i, e := range want {
+		if reflect.TypeOf(e) != reflect.TypeOf(pe[i]) {
+			msg += fmt.Sprintf("\tat pos %d want:%v, got:%v\n", i, reflect.TypeOf(e), reflect.TypeOf(pe[i]))
+		}
+	}
+	if msg != "" {
+		t.Errorf("error asserting published types:\n%s", msg)
+	}
+}
+
+func assertEventsHandled(t *testing.T, h *HandlerMock, events ...Event) {
+	// Make a copy of the handler events
+	handledEvents := make([]Event, len(h.handled))
+	copy(handledEvents, h.handled)
+
+	eventHandled := make([]bool, len(events))
+	for i, evt := range events {
+		for j, hEvt := range handledEvents {
+			if reflect.TypeOf(evt) == reflect.TypeOf(hEvt) {
+				eventHandled[i] = true
+				handledEvents = removeFromSlice(j, handledEvents)
+				break // Event was found so we can break
+			}
+		}
+	}
+
+	var msg = ""
+	var hasError = false
+	for i, isHandled := range eventHandled {
+		if !isHandled {
+			msg += fmt.Sprintf("%v\n", reflect.TypeOf(events[i]))
+			hasError = true
+		}
+	}
+
+	if hasError {
+		t.Errorf("events not handled: %s", msg)
+	}
+}
+
+func removeFromSlice(pos int, slice []Event) []Event {
+	slice[pos] = slice[len(slice)-1]
+	slice[len(slice)-1] = nil
+	slice = slice[:len(slice)-1]
+	return slice
 }
