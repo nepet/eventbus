@@ -1,5 +1,5 @@
 # Eventbus
-
+[![Test Coverage](https://codecov.io/gh/nepet/eventbus/master/graph/badge.svg)](https://codecov.io/gh/nepet/eventbus)
 #### A simple Implementation of an event bus in golang
 
 This repository is an implementation of the publisher/subscriber pattern in golang. It is meant to be as simple as
